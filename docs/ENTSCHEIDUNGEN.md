@@ -41,6 +41,19 @@ React liefert eine reaktionsschnelle Oberfläche über dieselbe dokumentierte RE
 Das Build wird als statische Dateien von Spring Boot ausgeliefert, damit es nur einen Dienst gibt und kein CORS nötig ist.
 Nachteil: ein zusätzlicher Build-Schritt (im Dockerfile und in der CI abgedeckt).
 
+## 8. Feiertage berechnen statt speichern
+`HolidayCalendar` berechnet den Ostersonntag (Algorithmus nach Meeus/Jones/Butcher) und leitet daraus Karfreitag, Ostermontag,
+Christi Himmelfahrt, Pfingstmontag und Fronleichnam ab. Die festen Feiertage kommen dazu. So gibt es keine Tabelle,
+die jedes Jahr nachgepflegt werden muss, und der Code ist mit bekannten Daten testbar (`HolidayCalendarTest`).
+Gewählt ist Nordrhein-Westfalen (elf Feiertage). Für andere Bundesländer müsste die Liste konfigurierbar werden.
+
+## 9. Abwesenheiten
+- Urlaub braucht eine Genehmigung, Krankheit und Sonstiges gelten sofort. Das spiegelt den normalen Ablauf: Krank meldet man sich, Urlaub beantragt man.
+- Das Urlaubskonto zählt genehmigte und beantragte Tage zusammen. Dadurch kann man nicht mehrere Anträge gleichzeitig über den Anspruch hinaus stellen. Anträge über den Jahreswechsel werden pro Jahr getrennt gerechnet (`AbsenceService.checkVacationBudget`).
+- Zurückgezogene und abgelehnte Einträge werden nicht gelöscht, sondern bekommen einen Status. Sie zählen weder beim Konto noch bei Überschneidungen.
+- Abwesenheit und Zeitbuchung schließen sich für denselben Tag aus. Beides wird an beiden Stellen geprüft (beim Buchen und beim Eintragen der Abwesenheit), und beim Genehmigen noch einmal, falls sich zwischenzeitlich etwas geändert hat.
+- Im Soll zählen Feiertage und genehmigte Abwesenheiten nicht (`SummaryService.month`).
+
 # Typische Fragen und wo die Antwort im Code steht
 
 | Frage | Antwort in Kurzform | Stelle |
