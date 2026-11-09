@@ -1,0 +1,9 @@
+target/
+node_modules/
+# Build-Ausgabe des Frontends (wird beim Docker-Build bzw. mit "npm run build" erzeugt)
+src/main/resources/static/
+.env
+*.log
+.idea/
+.vscode/
+*.iml
