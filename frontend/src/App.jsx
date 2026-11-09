@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from './api.js';
 
 const ROLE_LABEL = { EMPLOYEE: 'Mitarbeiter', SUPERVISOR: 'Vorgesetzter', ADMIN: 'Administrator' };
-const STATUS_LABEL = { BOOKED: 'Gebucht', CORRECTION_PENDING: 'Korrektur offen', PENDING: 'Offen', APPROVED: 'Genehmigt', REJECTED: 'Abgelehnt' };
+const STATUS_LABEL = { BOOKED: 'Gebucht', CORRECTION_PENDING: 'Korrektur offen', PENDING: 'Offen', APPROVED: 'Genehmigt', REJECTED: 'Abgelehnt', CANCELLED: 'Zurückgezogen' };
+const ABSENCE_LABEL = { VACATION: 'Urlaub', SICK: 'Krank', OTHER: 'Sonstiges' };
 
 const pad = (n) => String(n).padStart(2, '0');
 const currentMonth = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
@@ -178,6 +179,20 @@ function MyTimes() {
         </section>
       )}
 
+      {summary && summary.days.some((d) => d.holiday || d.absence) && (
+        <section className="card" aria-label="Feiertage und Abwesenheiten">
+          <h2>Feiertage und Abwesenheiten</h2>
+          <ul className="chips">
+            {summary.days.filter((d) => d.holiday || d.absence).map((d) => (
+              <li key={d.date} className={d.absence ? 'absence' : 'holiday'}>
+                {new Date(`${d.date}T00:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', weekday: 'short' })}
+                {' · '}{d.holiday || ABSENCE_LABEL[d.absence]}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <form className="card grid" onSubmit={book} aria-label="Zeit buchen">
         <h2 className="wide">Zeit buchen</h2>
         <label>Datum<input type="date" value={form.workDate} max={today} onChange={set('workDate')} required /></label>
@@ -257,38 +272,166 @@ function MyCorrections() {
 
 function Approvals({ onChange }) {
   const [list, setList] = useState([]);
+  const [absences, setAbsences] = useState([]);
   const [comments, setComments] = useState({});
   const [error, setError] = useState('');
-  const load = useCallback(() => api.pending().then(setList).catch((e) => setError(e.message)), []);
+  const load = useCallback(() => Promise.all([api.pending(), api.pendingAbsences()])
+    .then(([c, a]) => { setList(c); setAbsences(a); }).catch((e) => setError(e.message)), []);
   useEffect(() => { load(); }, [load]);
 
-  async function decide(id, approve) {
+  async function decide(kind, id, approve) {
     setError('');
-    try { await api.decide(id, approve, comments[id] || ''); await load(); onChange?.(); }
-    catch (err) { setError(err.message); }
+    const key = `${kind}-${id}`;
+    try {
+      await (kind === 'c' ? api.decide : api.decideAbsence)(id, approve, comments[key] || '');
+      await load();
+      onChange?.();
+    } catch (err) { setError(err.message); }
   }
 
-  return (
-    <div className="card">
-      <h2>Offene Korrekturanträge</h2>
-      <Message kind="error">{error}</Message>
-      {list.length === 0 && <p className="muted">Keine offenen Anträge.</p>}
-      <ul className="list">
-        {list.map((c) => (
-          <li key={c.id}>
-            <div><strong>{c.requestedBy}</strong> · {fmtDate(c.workDate)}</div>
-            <CorrectionDetails c={c} />
-            <div className="muted">Grund: {c.reason}</div>
-            <div className="decision">
-              <input placeholder="Kommentar (bei Ablehnung erforderlich)" value={comments[c.id] || ''}
-                onChange={(e) => setComments({ ...comments, [c.id]: e.target.value })} maxLength={500} aria-label="Kommentar" />
-              <button className="primary" onClick={() => decide(c.id, true)}>Genehmigen</button>
-              <button className="danger" onClick={() => decide(c.id, false)}>Ablehnen</button>
-            </div>
-          </li>
-        ))}
-      </ul>
+  const decision = (kind, id) => (
+    <div className="decision">
+      <input placeholder="Kommentar (bei Ablehnung erforderlich)" value={comments[`${kind}-${id}`] || ''}
+        onChange={(e) => setComments({ ...comments, [`${kind}-${id}`]: e.target.value })} maxLength={500} aria-label="Kommentar" />
+      <button className="primary" onClick={() => decide(kind, id, true)}>Genehmigen</button>
+      <button className="danger" onClick={() => decide(kind, id, false)}>Ablehnen</button>
     </div>
+  );
+
+  return (
+    <>
+      <Message kind="error">{error}</Message>
+      <div className="card">
+        <h2>Offene Korrekturanträge</h2>
+        {list.length === 0 && <p className="muted">Keine offenen Anträge.</p>}
+        <ul className="list">
+          {list.map((c) => (
+            <li key={c.id}>
+              <div><strong>{c.requestedBy}</strong> · {fmtDate(c.workDate)}</div>
+              <CorrectionDetails c={c} />
+              <div className="muted">Grund: {c.reason}</div>
+              {decision('c', c.id)}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="card">
+        <h2>Offene Urlaubsanträge</h2>
+        {absences.length === 0 && <p className="muted">Keine offenen Urlaubsanträge.</p>}
+        <ul className="list">
+          {absences.map((a) => (
+            <li key={a.id}>
+              <div><strong>{a.requestedBy}</strong> · {fmtDate(a.startDate)} bis {fmtDate(a.endDate)} ({a.workdays} Arbeitstage)</div>
+              {a.note && <div className="muted">Notiz: {a.note}</div>}
+              {decision('a', a.id)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- Abwesenheiten
+
+function Absences() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [data, setData] = useState(null);
+  const [holidays, setHolidays] = useState([]);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [form, setForm] = useState({ type: 'VACATION', startDate: '', endDate: '', note: '' });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const load = useCallback(async () => {
+    try {
+      const [overview, hol] = await Promise.all([api.absences(year), api.holidays(year)]);
+      setData(overview); setHolidays(hol); setError('');
+    } catch (err) { setError(err.message); }
+  }, [year]);
+  useEffect(() => { load(); }, [load]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setError(''); setInfo('');
+    try {
+      const res = await api.createAbsence({ ...form, endDate: form.endDate || form.startDate });
+      setInfo(res.status === 'PENDING' ? 'Urlaubsantrag gestellt. Er muss noch genehmigt werden.' : 'Abwesenheit eingetragen.');
+      setForm({ ...form, startDate: '', endDate: '', note: '' });
+      load();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function cancel(id) {
+    setError('');
+    try { await api.cancelAbsence(id); load(); } catch (err) { setError(err.message); }
+  }
+
+  const v = data?.vacation;
+  return (
+    <>
+      <div className="toolbar">
+        <div className="monthpicker">
+          <button aria-label="Vorheriges Jahr" onClick={() => setYear(year - 1)}>‹</button>
+          <strong>{year}</strong>
+          <button aria-label="Nächstes Jahr" onClick={() => setYear(year + 1)}>›</button>
+        </div>
+      </div>
+
+      {v && (
+        <section className="stats four" aria-label="Urlaubskonto">
+          <div className="card stat"><span>Anspruch</span><strong>{v.entitlement} Tage</strong></div>
+          <div className="card stat"><span>Genehmigt</span><strong>{v.approved} Tage</strong></div>
+          <div className="card stat"><span>Beantragt</span><strong>{v.pending} Tage</strong></div>
+          <div className="card stat pos"><span>Verfügbar</span><strong>{v.remaining} Tage</strong></div>
+        </section>
+      )}
+
+      <form className="card grid" onSubmit={submit} aria-label="Abwesenheit eintragen">
+        <h2 className="wide">Abwesenheit eintragen</h2>
+        <label>Art
+          <select value={form.type} onChange={set('type')}>
+            {Object.entries(ABSENCE_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        </label>
+        <label>Von<input type="date" value={form.startDate} onChange={set('startDate')} required /></label>
+        <label>Bis<input type="date" value={form.endDate} min={form.startDate} onChange={set('endDate')} /></label>
+        <label className="wide">Notiz (optional)<input value={form.note} onChange={set('note')} maxLength={500} /></label>
+        <div className="actions"><button className="primary">Eintragen</button></div>
+        <Message kind="error">{error}</Message>
+        <Message kind="ok">{info}</Message>
+      </form>
+
+      <div className="card table-wrap">
+        <h2>Meine Abwesenheiten {year}</h2>
+        <table>
+          <thead><tr><th>Art</th><th>Zeitraum</th><th>Arbeitstage</th><th>Status</th><th /></tr></thead>
+          <tbody>
+            {(data?.absences || []).length === 0 && <tr><td colSpan={5} className="muted">Keine Einträge.</td></tr>}
+            {(data?.absences || []).map((a) => (
+              <tr key={a.id}>
+                <td>{ABSENCE_LABEL[a.type]}{a.note && <div className="note">{a.note}</div>}</td>
+                <td>{fmtDate(a.startDate)}{a.endDate !== a.startDate && <> bis {fmtDate(a.endDate)}</>}</td>
+                <td>{a.workdays}</td>
+                <td><Badge status={a.status} />{a.decisionComment && <div className="note">{a.decidedBy}: {a.decisionComment}</div>}</td>
+                <td>{(a.status === 'PENDING' || a.status === 'APPROVED') && <button onClick={() => cancel(a.id)}>Zurückziehen</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card">
+        <h2>Feiertage {year} (Nordrhein-Westfalen)</h2>
+        <ul className="chips">
+          {holidays.map((h) => (
+            <li key={h.date} className="holiday">
+              {new Date(`${h.date}T00:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', weekday: 'short' })} · {h.name}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
   );
 }
 
@@ -421,7 +564,7 @@ export default function App() {
 
   const isManager = user && (user.role === 'SUPERVISOR' || user.role === 'ADMIN');
   const refreshPending = useCallback(() => {
-    if (isManager) api.pending().then((l) => setPendingCount(l.length)).catch(() => {});
+    if (isManager) Promise.all([api.pending(), api.pendingAbsences()]).then(([c, a]) => setPendingCount(c.length + a.length)).catch(() => {});
   }, [isManager]);
   useEffect(() => { refreshPending(); }, [refreshPending, tab]);
 
@@ -433,6 +576,7 @@ export default function App() {
   const tabs = [
     ['times', 'Meine Zeiten'],
     ['mine', 'Meine Korrekturen'],
+    ['absences', 'Abwesenheiten'],
     ...(isManager ? [['approvals', `Genehmigungen${pendingCount ? ` (${pendingCount})` : ''}`], ['team', 'Team']] : []),
     ...(user.role === 'ADMIN' ? [['admin', 'Verwaltung']] : [])
   ];
@@ -454,6 +598,7 @@ export default function App() {
       <main className="page">
         {tab === 'times' && <MyTimes />}
         {tab === 'mine' && <MyCorrections />}
+        {tab === 'absences' && <Absences />}
         {tab === 'approvals' && <Approvals onChange={refreshPending} />}
         {tab === 'team' && <Team />}
         {tab === 'admin' && <Admin />}

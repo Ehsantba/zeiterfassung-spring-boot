@@ -52,5 +52,11 @@ export const api = {
   teamEntries: (userId, month) => request(`/api/team/${userId}/entries?month=${month}`),
   users: () => request('/api/admin/users'),
   createUser: (data) => request('/api/admin/users', { method: 'POST', body: data }),
-  audit: () => request('/api/admin/audit?limit=100')
+  audit: () => request('/api/admin/audit?limit=100'),
+  absences: (year) => request(`/api/absences?year=${year}`),
+  createAbsence: (data) => request('/api/absences', { method: 'POST', body: data }),
+  cancelAbsence: (id) => request(`/api/absences/${id}/cancel`, { method: 'POST' }),
+  pendingAbsences: () => request('/api/absences/pending'),
+  decideAbsence: (id, approve, comment) => request(`/api/absences/${id}/decision`, { method: 'POST', body: { approve, comment } }),
+  holidays: (year) => request(`/api/holidays?year=${year}`)
 };
