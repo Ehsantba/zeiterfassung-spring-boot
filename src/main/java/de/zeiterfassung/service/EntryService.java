@@ -2,6 +2,7 @@ package de.zeiterfassung.service;
 
 import de.zeiterfassung.domain.AppUser;
 import de.zeiterfassung.domain.TimeEntry;
+import de.zeiterfassung.repo.AbsenceRepository;
 import de.zeiterfassung.repo.TimeEntryRepository;
 import de.zeiterfassung.service.Dto.EntryRequest;
 import de.zeiterfassung.service.Dto.EntryResponse;
@@ -20,11 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class EntryService {
 
     private final TimeEntryRepository entries;
+    private final AbsenceRepository absences;
     private final AuditService audit;
     private final Clock clock;
 
-    public EntryService(TimeEntryRepository entries, AuditService audit, Clock clock) {
+    public EntryService(TimeEntryRepository entries, AbsenceRepository absences, AuditService audit, Clock clock) {
         this.entries = entries;
+        this.absences = absences;
         this.audit = audit;
         this.clock = clock;
     }
@@ -67,12 +70,16 @@ public class EntryService {
         if (breakMinutes > gross) {
             throw new BusinessRuleException("Die Pause darf nicht länger sein als die Arbeitszeit.");
         }
+        if (!absences.findApproved(user, date, date).isEmpty()) {
+            throw new BusinessRuleException("Für diesen Tag ist eine Abwesenheit eingetragen. Bitte zuerst die Abwesenheit zurückziehen.");
+        }
         long exclude = excludeId == null ? -1L : excludeId;
         if (!entries.findOverlapping(user, date, start, end, exclude).isEmpty()) {
             throw new BusinessRuleException("Die Zeit überschneidet sich mit einer bestehenden Buchung.");
         }
 
         List<String> warnings = new ArrayList<>();
+        HolidayCalendar.holidayName(date).ifPresent(name -> warnings.add("Feiertag (" + name + "): Die Zeit wird als Mehrarbeit gezählt."));
         long otherNet = entries.findByUserAndWorkDate(user, date).stream()
                 .filter(e -> excludeId == null || !e.getId().equals(excludeId))
                 .mapToLong(e -> WorkTime.netMinutes(e.getWorkDate(), e.getStartTime(), e.getEndTime(), e.getBreakMinutes()))

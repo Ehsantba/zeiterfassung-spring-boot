@@ -69,7 +69,35 @@ public final class Dto {
         }
     }
 
-    public record DaySummary(LocalDate date, long workedMinutes, long targetMinutes, int entries) {
+    public record DaySummary(LocalDate date, long workedMinutes, long targetMinutes, int entries,
+                             String holiday, AbsenceType absence) {
+    }
+
+    public record AbsenceRequest(
+            @NotNull AbsenceType type,
+            @NotNull LocalDate startDate,
+            @NotNull LocalDate endDate,
+            @Size(max = 500) String note) {
+    }
+
+    public record AbsenceResponse(Long id, AbsenceType type, LocalDate startDate, LocalDate endDate, int workdays,
+                                  String note, AbsenceStatus status, String requestedBy, String decidedBy,
+                                  String decisionComment, Instant createdAt) {
+        public static AbsenceResponse of(Absence a) {
+            return new AbsenceResponse(a.getId(), a.getType(), a.getStartDate(), a.getEndDate(),
+                    HolidayCalendar.countWorkdays(a.getStartDate(), a.getEndDate()), a.getNote(), a.getStatus(),
+                    a.getUser().getName(), a.getDecidedBy() == null ? null : a.getDecidedBy().getName(),
+                    a.getDecisionComment(), a.getCreatedAt());
+        }
+    }
+
+    public record VacationBalance(int year, int entitlement, int approved, int pending, int remaining) {
+    }
+
+    public record AbsenceOverview(VacationBalance vacation, List<AbsenceResponse> absences) {
+    }
+
+    public record HolidayResponse(LocalDate date, String name) {
     }
 
     public record SummaryResponse(String month, List<DaySummary> days, long workedMinutes,

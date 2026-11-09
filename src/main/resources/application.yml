@@ -36,3 +36,5 @@ management:
 app:
   # Nur für Demo und Entwicklung. In Produktion nicht aktivieren.
   seed-demo-data: ${SEED_DEMO_DATA:false}
+  # Jahresurlaub in Arbeitstagen (Voreinstellung für alle Mitarbeiter)
+  vacation-days-per-year: ${VACATION_DAYS_PER_YEAR:30}
