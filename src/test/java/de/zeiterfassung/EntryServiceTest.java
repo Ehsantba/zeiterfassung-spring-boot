@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import de.zeiterfassung.domain.AppUser;
 import de.zeiterfassung.domain.Role;
 import de.zeiterfassung.domain.TimeEntry;
+import de.zeiterfassung.repo.AbsenceRepository;
 import de.zeiterfassung.repo.TimeEntryRepository;
 import de.zeiterfassung.service.AuditService;
 import de.zeiterfassung.service.BusinessRuleException;
@@ -35,7 +36,7 @@ class EntryServiceTest {
     void setUp() {
         repo = mock(TimeEntryRepository.class);
         Clock clock = Clock.fixed(Instant.parse("2025-06-18T10:00:00Z"), ZoneOffset.UTC);
-        service = new EntryService(repo, mock(AuditService.class), clock);
+        service = new EntryService(repo, mock(AbsenceRepository.class), mock(AuditService.class), clock);
         when(repo.findOverlapping(any(), any(), any(), any(), anyLong())).thenReturn(List.of());
         when(repo.findByUserAndWorkDate(any(), any())).thenReturn(List.of());
     }

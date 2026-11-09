@@ -44,6 +44,7 @@ class ApiIntegrationTest {
     @Autowired AppUserRepository users;
     @Autowired TimeEntryRepository entries;
     @Autowired CorrectionRequestRepository corrections;
+    @Autowired AbsenceRepository absenceRepo;
     @Autowired AuditLogRepository audit;
     @Autowired TransactionTemplate tx;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -53,6 +54,7 @@ class ApiIntegrationTest {
     @BeforeEach
     void data() {
         audit.deleteAll();
+        absenceRepo.deleteAll();
         corrections.deleteAll();
         entries.deleteAll();
         jdbc.update("update app_user set supervisor_id = null");
@@ -126,13 +128,13 @@ class ApiIntegrationTest {
         mvc.perform(get("/api/entries").with(as("mia@example.test", "EMPLOYEE")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(2)));
 
-        // Mo 16.06 und Di 17.06 zählen als Soll; heute (Mi 18.06) hat keine Buchung und zählt nicht.
-        // Vor dem 16.06. gibt es 9 weitere Werktage im Juni (2.-6., 9.-13.) = 10 Tage + 16. + 17. = 12 Tage Soll.
+        // Soll bis einschließlich Di 17.06.: Werktage 2.-6. und 9.-13. sind 10 Tage, davon ist Mo 09.06.
+        // (Pfingstmontag) ein Feiertag, also 9 Tage, dazu 16. und 17.06. = 11 Tage. Heute (Mi 18.06.) ohne Buchung zählt nicht.
         mvc.perform(get("/api/summary").param("month", "2025-06").with(as("mia@example.test", "EMPLOYEE")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.workedMinutes").value(17 * 60))
-                .andExpect(jsonPath("$.targetMinutes").value(12 * 8 * 60))
-                .andExpect(jsonPath("$.balanceMinutes").value(17 * 60 - 12 * 8 * 60));
+                .andExpect(jsonPath("$.targetMinutes").value(11 * 8 * 60))
+                .andExpect(jsonPath("$.balanceMinutes").value(17 * 60 - 11 * 8 * 60));
     }
 
     @Test
