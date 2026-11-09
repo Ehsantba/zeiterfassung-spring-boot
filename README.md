@@ -165,13 +165,13 @@ Es sind 49 Tests: Unit-Tests mit JUnit 5 und Mockito (Arbeitszeitberechnung, Pla
 CSV-Schutz) und Integrationstests mit Spring Boot und MockMvc (Anmeldung, CSRF, Rollen, Korrekturablauf, Urlaub,
 Export, Fehlerantworten, optimistisches Locking).
 
-Ein paar Fälle, die ich gezielt abgedeckt habe: die Zeitumstellung am 30.03.2025 und 26.10.2025, Überschneidungen,
+Gezielt abgedeckt sind unter anderem die Zeitumstellung am 30.03.2025 und 26.10.2025, Überschneidungen,
 Feiertage in NRW (2025 und 2026), Urlaub über den Jahresanspruch hinaus, Zugriff auf Daten anderer Teams.
 
 Die Abdeckung, gemessen mit JaCoCo bei `mvn verify`: 92,1 % der Instruktionen, 92,9 % der Zeilen und 76,6 % der
 Verzweigungen. Der Bericht liegt danach in `target/site/jacoco/index.html`, in der CI wird er als Artefakt gespeichert.
 
-Die Tests laufen gegen H2 im PostgreSQL-Modus mit denselben Flyway-Migrationen. Zusätzlich habe ich die Anwendung
+Die Tests laufen gegen H2 im PostgreSQL-Modus mit denselben Flyway-Migrationen. Zusätzlich wurde die Anwendung
 von Hand gegen PostgreSQL 16 durchgespielt: Anmeldung, Buchen, Korrektur, Urlaubsantrag, Genehmigung, Export, Protokoll.
 
 Rückmeldungen von Testnutzern gibt es noch nicht.
