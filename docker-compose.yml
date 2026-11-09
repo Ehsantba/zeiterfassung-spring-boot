@@ -1,0 +1,33 @@
+# Startet Datenbank und Anwendung:  docker compose up --build
+# Danach: http://localhost:8080  (Demo-Benutzer siehe README)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zeiterfassung
+      POSTGRES_USER: zeiterfassung
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zeiterfassung}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zeiterfassung -d zeiterfassung"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/zeiterfassung
+      DB_USER: zeiterfassung
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-zeiterfassung}
+      # Nur für die Demo: legt vier Beispiel-Benutzer an. In Produktion auf false setzen.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports:
+      - "8080:8080"
+
+volumes:
+  dbdata:
