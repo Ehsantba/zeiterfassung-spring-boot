@@ -132,17 +132,15 @@ public class AbsenceService {
 
     @Transactional(readOnly = true)
     public List<AbsenceResponse> pendingFor(AppUser actor) {
-        List<Absence> list = actor.getRole() == Role.ADMIN
-                ? absences.findByStatusOrderByCreatedAtAsc(AbsenceStatus.PENDING)
-                : absences.findByStatusForSupervisor(AbsenceStatus.PENDING, actor);
+        List<Absence> list = absences.findByStatusForSupervisor(AbsenceStatus.PENDING, actor);
         return list.stream().map(AbsenceResponse::of).toList();
     }
 
     public AbsenceResponse decide(AppUser actor, long id, DecisionRequest decision) {
         Absence absence = absences.findById(id).orElseThrow(() -> new NotFoundException("Abwesenheit nicht gefunden."));
         AppUser requester = absence.getUser();
-        boolean allowed = actor.getRole() == Role.ADMIN
-                || (requester.getSupervisor() != null && requester.getSupervisor().getId().equals(actor.getId()));
+        boolean allowed = requester.getSupervisor() != null
+                && requester.getSupervisor().getId().equals(actor.getId());
         if (!allowed) {
             throw new NotFoundException("Abwesenheit nicht gefunden.");
         }

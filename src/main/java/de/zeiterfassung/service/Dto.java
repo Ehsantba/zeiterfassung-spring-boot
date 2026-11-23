@@ -40,6 +40,9 @@ public final class Dto {
             Long supervisorId) {
     }
 
+    public record UpdateUserRequest(@NotNull Role role, Long supervisorId) {
+    }
+
     public record EntryResponse(Long id, LocalDate workDate, LocalTime startTime, LocalTime endTime,
                                 int breakMinutes, long netMinutes, String note, EntryStatus status) {
         public static EntryResponse of(TimeEntry e) {
@@ -104,10 +107,12 @@ public final class Dto {
                                   long targetMinutes, long balanceMinutes) {
     }
 
-    public record UserResponse(Long id, String name, String email, Role role, String supervisor, boolean active) {
+    public record UserResponse(Long id, String name, String email, Role role, String supervisor,
+                               Long supervisorId, boolean active) {
         public static UserResponse of(AppUser u) {
             return new UserResponse(u.getId(), u.getName(), u.getEmail(), u.getRole(),
-                    u.getSupervisor() == null ? null : u.getSupervisor().getName(), u.isActive());
+                    u.getSupervisor() == null ? null : u.getSupervisor().getName(),
+                    u.getSupervisor() == null ? null : u.getSupervisor().getId(), u.isActive());
         }
     }
 

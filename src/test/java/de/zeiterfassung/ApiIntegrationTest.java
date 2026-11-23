@@ -6,7 +6,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -295,6 +297,72 @@ class ApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"X\",\"email\":\"x@example.test\",\"password\":\"kurz\",\"role\":\"EMPLOYEE\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanChangeRoleAndSupervisor() throws Exception {
+        mvc.perform(put("/api/admin/users/" + mia.getId()).with(as("admin@example.test", "ADMIN")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"SUPERVISOR\",\"supervisorId\":" + admin.getId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("SUPERVISOR"))
+                .andExpect(jsonPath("$.supervisorId").value(admin.getId()));
+
+        assertThat(users.findById(mia.getId()).orElseThrow().getRole()).isEqualTo(Role.SUPERVISOR);
+    }
+
+    @Test
+    void cannotDemoteSupervisorWithActiveTeamMembers() throws Exception {
+        mvc.perform(put("/api/admin/users/" + chef.getId()).with(as("admin@example.test", "ADMIN")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"EMPLOYEE\",\"supervisorId\":" + admin.getId() + "}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("Teammitglieder")));
+
+        assertThat(users.findById(chef.getId()).orElseThrow().getRole()).isEqualTo(Role.SUPERVISOR);
+    }
+
+    @Test
+    void adminCanDeactivateAndReactivateUserWithoutDeletingData() throws Exception {
+        long entryId = book("mia@example.test", "2025-06-16", "08:00", "12:00", 0);
+
+        mvc.perform(delete("/api/admin/users/" + mia.getId()).with(as("admin@example.test", "ADMIN")).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+        mvc.perform(get("/api/me").with(as("mia@example.test", "EMPLOYEE")))
+                .andExpect(status().isForbidden());
+        assertThat(entries.findById(entryId)).isPresent();
+
+        mvc.perform(post("/api/admin/users/" + mia.getId() + "/activation")
+                        .with(as("admin@example.test", "ADMIN")).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true));
+        mvc.perform(get("/api/me").with(as("mia@example.test", "EMPLOYEE")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void cannotDeactivateSupervisorWithActiveTeamMembersOrOwnAccount() throws Exception {
+        mvc.perform(delete("/api/admin/users/" + chef.getId()).with(as("admin@example.test", "ADMIN")).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(containsString("Teammitglieder")));
+        mvc.perform(delete("/api/admin/users/" + admin.getId()).with(as("admin@example.test", "ADMIN")).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void changedRoleInvalidatesOldSessionAuthorities() throws Exception {
+        mvc.perform(put("/api/admin/users/" + mia.getId()).with(as("admin@example.test", "ADMIN")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\",\"supervisorId\":" + admin.getId() + "}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/admin/users/" + mia.getId()).with(as("admin@example.test", "ADMIN")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"EMPLOYEE\",\"supervisorId\":" + chef.getId() + "}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/admin/users").with(as("mia@example.test", "ADMIN")))
+                .andExpect(status().isForbidden());
     }
 
     // ---------- Export ----------

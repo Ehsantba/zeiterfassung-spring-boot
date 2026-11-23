@@ -99,11 +99,15 @@ class AbsenceIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(1)));
         mvc.perform(get("/api/absences/pending").with(as("other@example.test", "SUPERVISOR")))
                 .andExpect(jsonPath("$", hasSize(0)));
+        mvc.perform(get("/api/absences/pending").with(as("admin@example.test", "ADMIN")))
+                .andExpect(jsonPath("$", hasSize(0)));
 
         mvc.perform(post("/api/absences/" + id + "/decision").with(as("other@example.test", "SUPERVISOR")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"approve\":true}")).andExpect(status().isNotFound());
         mvc.perform(post("/api/absences/" + id + "/decision").with(as("mia@example.test", "EMPLOYEE")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"approve\":true}")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/absences/" + id + "/decision").with(as("admin@example.test", "ADMIN")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"approve\":true}")).andExpect(status().isNotFound());
 
         mvc.perform(post("/api/absences/" + id + "/decision").with(as("chef@example.test", "SUPERVISOR")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"approve\":true,\"comment\":\"Schönen Urlaub\"}"))

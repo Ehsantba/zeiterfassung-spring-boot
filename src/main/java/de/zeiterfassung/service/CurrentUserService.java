@@ -3,6 +3,7 @@ package de.zeiterfassung.service;
 import de.zeiterfassung.domain.AppUser;
 import de.zeiterfassung.repo.AppUserRepository;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,6 +18,9 @@ public class CurrentUserService {
     public AppUser require(Authentication authentication) {
         return users.findByEmailIgnoreCase(authentication.getName())
                 .filter(AppUser::isActive)
-                .orElseThrow(() -> new ForbiddenOperationException("Benutzer nicht gefunden oder deaktiviert."));
+                .filter(user -> authentication.getAuthorities()
+                        .contains(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())))
+                .orElseThrow(() -> new ForbiddenOperationException(
+                        "Benutzer nicht gefunden, deaktiviert oder die Rolle wurde geändert. Bitte erneut anmelden."));
     }
 }

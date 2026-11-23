@@ -476,18 +476,56 @@ function Team() {
 
 // ---------------------------------------------------------------- Verwaltung
 
-function Admin() {
+function Admin({ currentUserId }) {
   const [users, setUsers] = useState([]);
   const [audit, setAudit] = useState([]);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'EMPLOYEE', supervisorId: '' });
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editForm, setEditForm] = useState({ role: '', supervisorId: '' });
+  const [busyUserId, setBusyUserId] = useState(null);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const load = useCallback(() => {
-    Promise.all([api.users(), api.audit()]).then(([u, a]) => { setUsers(u); setAudit(a); }).catch((e) => setError(e.message));
+  const load = useCallback(async () => {
+    const [u, a] = await Promise.all([api.users(), api.audit()]);
+    setUsers(u);
+    setAudit(a);
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load().catch((e) => setError(e.message)); }, [load]);
+
+  function startEditing(user) {
+    setError(''); setInfo('');
+    setEditingUserId(user.id);
+    setEditForm({ role: user.role, supervisorId: user.supervisorId ? String(user.supervisorId) : '' });
+  }
+
+  async function saveUser(e, userId) {
+    e.preventDefault();
+    setBusyUserId(userId); setError(''); setInfo('');
+    try {
+      await api.updateUser(userId, {
+        role: editForm.role,
+        supervisorId: editForm.supervisorId ? Number(editForm.supervisorId) : null
+      });
+      setInfo('Benutzer wurde aktualisiert.');
+      setEditingUserId(null);
+      await load();
+    } catch (err) { setError(err.message); }
+    finally { setBusyUserId(null); }
+  }
+
+  async function setUserActive(user) {
+    if (user.active && !window.confirm(`Möchten Sie ${user.name} wirklich deaktivieren? Die gespeicherten Daten bleiben erhalten.`)) return;
+    setBusyUserId(user.id); setError(''); setInfo('');
+    try {
+      if (user.active) await api.deactivateUser(user.id);
+      else await api.activateUser(user.id);
+      setInfo(`Benutzer wurde ${user.active ? 'deaktiviert' : 'reaktiviert'}.`);
+      await load();
+    } catch (err) { setError(err.message); }
+    finally { setBusyUserId(null); }
+  }
 
   async function create(e) {
     e.preventDefault();
@@ -496,12 +534,14 @@ function Admin() {
       await api.createUser({ ...form, supervisorId: form.supervisorId ? Number(form.supervisorId) : null });
       setInfo('Benutzer angelegt.');
       setForm({ name: '', email: '', password: '', role: 'EMPLOYEE', supervisorId: '' });
-      load();
+      await load();
     } catch (err) { setError(err.message); }
   }
 
   return (
     <>
+      <Message kind="error">{error}</Message>
+      <Message kind="ok">{info}</Message>
       <form className="card grid" onSubmit={create}>
         <h2 className="wide">Benutzer anlegen</h2>
         <label>Name<input value={form.name} onChange={set('name')} required /></label>
@@ -515,19 +555,51 @@ function Admin() {
         <label>Vorgesetzter
           <select value={form.supervisorId} onChange={set('supervisorId')}>
             <option value="">–</option>
-            {users.filter((u) => u.role !== 'EMPLOYEE').map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {users.filter((u) => u.active && u.role !== 'EMPLOYEE').map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </label>
         <div className="actions"><button className="primary">Anlegen</button></div>
-        <Message kind="error">{error}</Message>
-        <Message kind="ok">{info}</Message>
       </form>
 
       <div className="card table-wrap">
         <h2>Benutzer</h2>
         <table>
-          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Vorgesetzter</th></tr></thead>
-          <tbody>{users.map((u) => <tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{ROLE_LABEL[u.role]}</td><td>{u.supervisor || '–'}</td></tr>)}</tbody>
+          <thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Vorgesetzter</th><th>Status</th><th>Aktionen</th></tr></thead>
+          <tbody>{users.map((u) => editingUserId === u.id ? (
+            <tr key={u.id}><td colSpan={6}>
+              <form className="grid user-edit" onSubmit={(e) => saveUser(e, u.id)}>
+                <strong className="wide">{u.name} bearbeiten</strong>
+                <label>Rolle
+                  <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
+                    {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </label>
+                <label>Vorgesetzter
+                  <select value={editForm.supervisorId} onChange={(e) => setEditForm({ ...editForm, supervisorId: e.target.value })}>
+                    <option value="">–</option>
+                    {users.filter((candidate) => candidate.active && candidate.role !== 'EMPLOYEE' && candidate.id !== u.id)
+                      .map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                  </select>
+                </label>
+                <div className="actions">
+                  <button className="primary" disabled={busyUserId === u.id}>{busyUserId === u.id ? 'Speichern …' : 'Speichern'}</button>
+                  <button type="button" onClick={() => setEditingUserId(null)}>Abbrechen</button>
+                </div>
+              </form>
+            </td></tr>
+          ) : (
+            <tr key={u.id} className={u.active ? '' : 'user-inactive'}>
+              <td>{u.name}</td><td>{u.email}</td><td>{ROLE_LABEL[u.role]}</td><td>{u.supervisor || '–'}</td>
+              <td>{u.active ? 'Aktiv' : 'Deaktiviert'}</td>
+              <td><div className="user-actions">
+                {u.id === currentUserId ? <span className="muted small">Eigenes Konto</span> : <>
+                  <button onClick={() => startEditing(u)}>Bearbeiten</button>
+                  <button className={u.active ? 'danger' : ''} disabled={busyUserId === u.id}
+                    onClick={() => setUserActive(u)}>{busyUserId === u.id ? 'Bitte warten …' : u.active ? 'Deaktivieren' : 'Reaktivieren'}</button>
+                </>}
+              </div></td>
+            </tr>
+          ))}</tbody>
         </table>
       </div>
 
@@ -601,7 +673,7 @@ export default function App() {
         {tab === 'absences' && <Absences />}
         {tab === 'approvals' && <Approvals onChange={refreshPending} />}
         {tab === 'team' && <Team />}
-        {tab === 'admin' && <Admin />}
+        {tab === 'admin' && <Admin currentUserId={user.id} />}
       </main>
     </>
   );

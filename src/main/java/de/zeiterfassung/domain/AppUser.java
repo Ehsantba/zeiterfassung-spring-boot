@@ -48,5 +48,7 @@ public class AppUser {
     public Role getRole() { return role; }
     public AppUser getSupervisor() { return supervisor; }
     public boolean isActive() { return active; }
+    public void setRole(Role role) { this.role = role; }
+    public void setSupervisor(AppUser supervisor) { this.supervisor = supervisor; }
     public void setActive(boolean active) { this.active = active; }
 }

@@ -152,7 +152,8 @@ public class ApiController {
     @GetMapping("/admin/users")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Alle Benutzer")
-    public List<UserResponse> users() {
+    public List<UserResponse> users(Authentication auth) {
+        currentUser.require(auth);
         return userService.all();
     }
 
@@ -164,10 +165,33 @@ public class ApiController {
         return userService.create(currentUser.require(auth), request);
     }
 
+    @PutMapping("/admin/users/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Rolle und Vorgesetzten eines Benutzers ändern")
+    public UserResponse updateUser(Authentication auth, @PathVariable long userId,
+                                   @Valid @RequestBody UpdateUserRequest request) {
+        return userService.update(currentUser.require(auth), userId, request);
+    }
+
+    @DeleteMapping("/admin/users/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Benutzer deaktivieren, ohne Daten zu löschen")
+    public UserResponse deactivateUser(Authentication auth, @PathVariable long userId) {
+        return userService.setActive(currentUser.require(auth), userId, false);
+    }
+
+    @PostMapping("/admin/users/{userId}/activation")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Benutzer reaktivieren")
+    public UserResponse activateUser(Authentication auth, @PathVariable long userId) {
+        return userService.setActive(currentUser.require(auth), userId, true);
+    }
+
     @GetMapping("/admin/audit")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Änderungsprotokoll (neueste zuerst)")
-    public List<AuditResponse> audit(@RequestParam(defaultValue = "100") int limit) {
+    public List<AuditResponse> audit(Authentication auth, @RequestParam(defaultValue = "100") int limit) {
+        currentUser.require(auth);
         return userService.auditTrail(limit);
     }
 

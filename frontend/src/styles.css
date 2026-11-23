@@ -47,6 +47,10 @@ label { display: grid; gap: .25rem; font-size: .85rem; font-weight: 600; color: 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .55rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.user-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.user-actions button { padding: .35rem .6rem; }
+.user-inactive { color: var(--muted); }
+.user-edit { padding: .5rem; }
 .note { color: var(--muted); font-size: .85rem; }
 .inline-form td { background: #f8faff; }
 

@@ -18,6 +18,7 @@ Gebaut mit Java 21, Spring Boot 3, PostgreSQL und React.
 - Monatsübersicht mit Ist, Soll und Saldo. Feiertage und genehmigte Abwesenheiten haben kein Soll.
 - Export des Monats als CSV oder PDF.
 - Vorgesetzte sehen die Buchungen ihres Teams (nur lesen) und die offenen Anträge.
+- Administratoren können Benutzerrollen und Vorgesetzte ändern sowie Konten deaktivieren und reaktivieren. Deaktivierte Konten verlieren den Zugriff; Buchungen und Änderungsprotokolle bleiben erhalten.
 - Änderungsprotokoll: wer hat wann was geändert, mit altem und neuem Wert.
 - API-Dokumentation mit Swagger UI unter `/swagger-ui.html`.
 
@@ -183,7 +184,6 @@ Rückmeldungen von Testnutzern gibt es noch nicht.
 - Eine Buchung gilt für einen Kalendertag. Schichten über Mitternacht müssen als zwei Buchungen erfasst werden.
 - Keine Erinnerungs-E-Mails und keine zweite Sprache in der Oberfläche.
 - Es gibt keine Sperre gegen wiederholte falsche Anmeldungen und kein Zurücksetzen von Passwörtern.
-- Benutzer lassen sich anlegen, aber noch nicht bearbeiten oder in der Oberfläche deaktivieren.
 - Das Docker-Setup ist nicht automatisiert getestet. Die Tests nutzen H2 statt Testcontainers mit echter PostgreSQL.
 - Es gibt keine automatisierten Browser-Tests.
 
